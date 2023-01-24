@@ -26,24 +26,27 @@
 //!   [`impls`](crate::impls) module with example of how we do it. It works, however, it is
 //!   incredibly invasive - production code requires heavy modification to the crate, and
 //!   downstream crates cannot be used by them for the purposes of type layout checks.
-//! 
+//!
 //! 2 becomes the only feasible solution. Depending on how advanced it is, it can also nicely
 //!   handle things like self-referential structures without requiring runtime processing.
 
-pub mod type_id;
 pub mod impls;
+pub mod type_id;
 
 // Import enum fields to make this enum-heavy code look better
 
 pub mod prelude {
     use super::*;
+    pub use crate::impl_block;
+    pub use EnumVariants::*;
+    pub use InnerType::*;
     pub use NumericTy::*;
     pub use PrimitiveTy::*;
     pub use SequenceTy::*;
+    pub use StructFields::*;
     pub use TextualTy::*;
-    pub use InnerType::*;
-    pub use UserTy::*;
     pub use Type::*;
+    pub use UserTy::*;
 }
 
 use prelude::*;
@@ -79,7 +82,6 @@ pub enum Type {
 }
 
 impl Type {
-    
     pub const fn is_sized(&self) -> bool {
         match self {
             Unsized(_) => false,
@@ -165,7 +167,13 @@ pub enum BaseRepr {
 pub struct StructTy {
     pub repr: Repr,
     pub name: &'static str,
-    pub fields: &'static [NamedField],
+    pub fields: StructFields,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StructFields {
+    Named(&'static [NamedField]),
+    Unnamed(&'static [Field]),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -184,7 +192,7 @@ pub struct TupleTy {
 pub struct EnumTy {
     pub repr: Repr,
     pub name: &'static str,
-    pub variants: &'static [EnumVariant],
+    pub variants: EnumVariants,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -220,9 +228,29 @@ pub struct FloatTy {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EnumVariant {
+pub struct EnumVariant<T> {
     pub name: &'static str,
-    pub fields: &'static [Field],
+    pub value: Option<T>,
+    pub fields: StructFields,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnumVariants {
+    Undefined(&'static [EnumVariant<()>]),
+    // C ABI int size can only be best guess
+    C(&'static [EnumVariant<i128>]),
+    U8(&'static [EnumVariant<u8>]),
+    I8(&'static [EnumVariant<i8>]),
+    U16(&'static [EnumVariant<u16>]),
+    I16(&'static [EnumVariant<i16>]),
+    U32(&'static [EnumVariant<u32>]),
+    I32(&'static [EnumVariant<i32>]),
+    U64(&'static [EnumVariant<u64>]),
+    I64(&'static [EnumVariant<i64>]),
+    U128(&'static [EnumVariant<u128>]),
+    I128(&'static [EnumVariant<i128>]),
+    Usize(&'static [EnumVariant<usize>]),
+    Isize(&'static [EnumVariant<isize>]),
 }
 
 // We can not hold the underlying type, because
@@ -246,4 +274,3 @@ pub struct NamedField {
     pub name: &'static str,
     pub inner: Field,
 }
-
